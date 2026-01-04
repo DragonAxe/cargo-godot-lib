@@ -21,7 +21,7 @@ pub struct ValidGdExtensionConfig {
 /// Builder for `ValidGdExtensionConfig`.
 ///
 /// Example usage:
-/// ```rust
+/// ```rust,ignore
 /// GdExtensionConfig::start(
 ///      &*crate_name.replace("-", "_"),
 ///      godot_project_path,

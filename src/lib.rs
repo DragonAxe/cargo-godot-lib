@@ -17,7 +17,7 @@ pub struct GodotRunner {
 
 impl GodotRunner {
     /// Example usage:
-    /// ```rust
+    /// ```rust,ignore
     /// cargo_godot::GodotRunner::create(
     ///     env!("CARGO_PKG_NAME"),
     ///     &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),

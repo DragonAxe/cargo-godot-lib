@@ -1,4 +1,4 @@
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 env:
   CARGO_TERM_COLOR: always
@@ -7,25 +7,22 @@ jobs:
   lint_fmt:
     name: cargo fmt
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check formating
+      - name: Check formatting
         run: cargo fmt -- --check
 
   lint_clippy:
     name: Clippy
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-
       - name: Run clippy
         run: cargo clippy --all-features -- --deny warnings
 
@@ -35,17 +32,14 @@ jobs:
       matrix:
         mode: ["debug", "release"]
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-
       - name: Run tests (debug)
         if: matrix.mode == 'debug'
         run: cargo test --all-features
-
       - name: Run tests (release)
         if: matrix.mode == 'release'
         run: cargo test --all-features --release

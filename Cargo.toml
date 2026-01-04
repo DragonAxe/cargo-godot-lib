@@ -11,7 +11,7 @@ keywords = [ "gamedev", "godot", "cargo", "godot-bevy", "gdextension" ]
 categories = [ "game-development", "game-engines", "development-tools" ]
 
 [lib]
-name = "cargo_godot"
+name = "cargo_godot_lib"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

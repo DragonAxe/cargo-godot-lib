@@ -18,15 +18,13 @@ pub struct GodotRunner {
 impl GodotRunner {
     /// Example usage:
     /// ```rust
-    /// fn main() {
-    ///     cargo_godot::GodotRunner::create(
-    ///         env!("CARGO_PKG_NAME"),
-    ///         &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
-    ///     )
-    ///     .expect("Failed to create Godot run configuration")
-    ///     .execute()
-    ///     .expect("Failed to execute Godot");
-    /// }
+    /// cargo_godot::GodotRunner::create(
+    ///     env!("CARGO_PKG_NAME"),
+    ///     &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
+    /// )
+    /// .expect("Failed to create Godot run configuration")
+    /// .execute()
+    /// .expect("Failed to execute Godot");
     /// ```
     pub fn create(crate_name: &str, godot_project_path: &Path) -> Result<Self, Error> {
         let manifest_path = Path::new("./Cargo.toml");
@@ -69,14 +67,14 @@ impl GodotRunner {
         }
 
         if self.pre_import {
-            run_godot_import_if_needed(&godot_project_path)?;
+            run_godot_import_if_needed(godot_project_path)?;
         }
 
         let status = Command::new(godot_binary_path)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
-            .current_dir(&godot_project_path)
+            .current_dir(godot_project_path)
             .args(&self.godot_cli_arguments)
             .spawn()?
             .wait()?;
@@ -115,6 +113,9 @@ impl GodotRunner {
     /// See https://docs.godotengine.org/en/stable/tutorials/editor/command_line_tutorial.html
     /// for a list of available arguments
     pub fn godot_cli_arguments(self, args: Vec<String>) -> Self {
-        Self { godot_cli_arguments: args, ..self }
+        Self {
+            godot_cli_arguments: args,
+            ..self
+        }
     }
 }

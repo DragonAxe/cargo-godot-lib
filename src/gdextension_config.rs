@@ -1,4 +1,4 @@
-///! Utilities for generating a `.gdextension` file for Godot.
+//! Utilities for generating a `.gdextension` file for Godot.
 use crate::error::Error;
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
@@ -81,14 +81,18 @@ impl GdExtensionConfig {
             ))?
             .canonicalize()?;
         let godot_project_path = self
-            .godot_project_path.as_ref()
+            .godot_project_path
+            .as_ref()
             .ok_or(Error::InvalidGdExtensionConfig(
                 "Missing godot project path".to_string(),
             ))?
             .canonicalize()?;
-        let library_name = self.library_name.as_ref().ok_or(Error::InvalidGdExtensionConfig(
-            "Missing package name".to_string(),
-        ))?;
+        let library_name = self
+            .library_name
+            .as_ref()
+            .ok_or(Error::InvalidGdExtensionConfig(
+                "Missing package name".to_string(),
+            ))?;
         let relative_target_path = diff_paths(&target_path, &godot_project_path)
             .ok_or(Error::InvalidGdExtensionConfig(format!(
                 "Failed to compute relative target path for paths target={} and project={}",

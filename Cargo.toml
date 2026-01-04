@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "A library to run Godot from a Cargo run script"
+homepage = "https://github.com/dragonaxe/cargo-godot-lib"
 repository = "https://github.com/dragonaxe/cargo-godot-lib"
+readme = "README.md"
+keywords = [ "gamedev", "godot", "cargo", "godot-bevy", "gdextension" ]
+categories = [ "game-development", "game-engines", "development-tools" ]
 
 [lib]
 name = "cargo_godot"

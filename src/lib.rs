@@ -1,10 +1,9 @@
-pub mod error;
 pub mod gdextension_config;
 pub mod godot_commands;
 
-use crate::error::Error;
 use crate::gdextension_config::GdExtensionConfig;
 use crate::godot_commands::{godot_binary_path, run_godot_import_if_needed};
+use anyhow::{Context, Result, anyhow};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -26,7 +25,7 @@ impl GodotRunner {
     /// .execute()
     /// .expect("Failed to execute Godot");
     /// ```
-    pub fn create(crate_name: &str, godot_project_path: &Path) -> Result<Self, Error> {
+    pub fn create(crate_name: &str, godot_project_path: &Path) -> Result<Self> {
         let manifest_path = Path::new("./Cargo.toml");
         Self::create_with_manifest(crate_name, godot_project_path, manifest_path)
     }
@@ -36,34 +35,42 @@ impl GodotRunner {
         crate_name: &str,
         godot_project_path: &Path,
         cargo_manifest_path: &Path,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let metadata = cargo_metadata::MetadataCommand::new()
             .manifest_path(cargo_manifest_path)
             .exec()?;
         Ok(Self {
-            godot_project_path: Some(godot_project_path.canonicalize()?),
+            godot_project_path: Some(godot_project_path.canonicalize().with_context(|| {
+                format!(
+                    "Failed to canonicalize godot project path: {:?}",
+                    godot_project_path
+                )
+            })?),
             gdextension_config: Some(GdExtensionConfig::start(
                 crate_name,
                 godot_project_path,
                 metadata.target_directory.as_std_path(),
             )),
             pre_import: true,
-            godot_cli_arguments: vec!["--debug".to_string()], // Launch Godot with local stdout debugger
+            godot_cli_arguments: vec!["--debug".to_string()], // Launch Godot with the local stdout debugger enabled
         })
     }
 
     /// Run Godot with the current configuration.
-    pub fn execute(&self) -> Result<(), Error> {
-        let godot_project_path =
-            self.godot_project_path
-                .as_ref()
-                .ok_or(Error::InvalidGodotRunConfig(
-                    "Godot project path not set.".to_string(),
-                ))?;
+    pub fn execute(&self) -> Result<()> {
+        let godot_project_path = self
+            .godot_project_path
+            .as_ref()
+            .context("Godot project path not set.")?;
         let godot_binary_path = godot_binary_path()?;
 
         if let Some(gdextension_config) = &self.gdextension_config {
-            gdextension_config.build()?.write()?;
+            let valid_gdextension_config = gdextension_config
+                .build()
+                .context("Failed to build .gdextension config")?;
+            valid_gdextension_config
+                .write()
+                .context("Failed to write .gdextension file")?;
         }
 
         if self.pre_import {
@@ -76,22 +83,17 @@ impl GodotRunner {
             .stderr(Stdio::inherit())
             .current_dir(godot_project_path)
             .args(&self.godot_cli_arguments)
-            .spawn()?
-            .wait()?;
+            .spawn()
+            .context("Failed to spawn Godot process")?
+            .wait()
+            .context("Failed to wait for Godot process")?;
 
         if !status.success() {
-            return if let Some(code) = status.code() {
-                Err(Error::GodotExecFailed(format!(
-                    "Godot process failed with exit code {}",
-                    code
-                )))
-            } else {
-                Err(Error::GodotExecFailed(
-                    "Godot process failed with unknown exit code".to_string(),
-                ))
-            };
+            let code = status.code().context("Failed to get exit code")?;
+            Err(anyhow!("Godot process failed with exit code {}", code))
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     /// Configure the `.gdextension` config file which is generated before launch by default.

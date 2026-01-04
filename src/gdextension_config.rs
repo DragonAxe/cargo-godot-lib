@@ -1,5 +1,5 @@
 //! Utilities for generating a `.gdextension` file for Godot.
-use crate::error::Error;
+use anyhow::{Context, Result};
 use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 
@@ -72,37 +72,36 @@ impl GdExtensionConfig {
     }
 
     /// Validate builder parameters and return a `ValidGdExtensionConfig`.
-    pub fn build(&self) -> Result<ValidGdExtensionConfig, Error> {
+    pub fn build(&self) -> Result<ValidGdExtensionConfig> {
         let target_path = self
             .target_path
             .as_ref()
-            .ok_or(Error::InvalidGdExtensionConfig(
-                "Missing target directory".to_string(),
-            ))?
-            .canonicalize()?;
+            .context("Missing target path")?
+            .canonicalize()
+            .with_context(|| {
+                format!("Failed to canonicalize target path: {:?}", self.target_path)
+            })?;
         let godot_project_path = self
             .godot_project_path
             .as_ref()
-            .ok_or(Error::InvalidGdExtensionConfig(
-                "Missing godot project path".to_string(),
-            ))?
-            .canonicalize()?;
-        let library_name = self
-            .library_name
-            .as_ref()
-            .ok_or(Error::InvalidGdExtensionConfig(
-                "Missing package name".to_string(),
-            ))?;
+            .context("Missing godot project path")?
+            .canonicalize()
+            .with_context(|| {
+                format!(
+                    "Failed to canonicalize godot project path: {:?}",
+                    self.godot_project_path
+                )
+            })?;
+        let library_name = self.library_name.as_ref().context("Missing library name")?;
         let relative_target_path = diff_paths(&target_path, &godot_project_path)
-            .ok_or(Error::InvalidGdExtensionConfig(format!(
-                "Failed to compute relative target path for paths target={} and project={}",
-                target_path.display(),
-                godot_project_path.display()
-            )))?
+            .with_context(|| {
+                format!(
+                    "Failed to calculate relative target path: target={:?} -> godot_project={:?}",
+                    target_path, godot_project_path
+                )
+            })?
             .to_str()
-            .ok_or(Error::InvalidGdExtensionConfig(
-                "target path is not valid utf-8".to_string(),
-            ))?
+            .context("Failed to convert relative target path to string")?
             .to_string();
 
         Ok(ValidGdExtensionConfig {

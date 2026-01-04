@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 cargo_metadata = "0.23"
 pathdiff = "0.2"
-thiserror = "2.0"
+anyhow = "1.0"
 which = "8.0"
 
 [dev-dependencies]

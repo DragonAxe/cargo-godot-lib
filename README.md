@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/cargo-godot-lib.svg)](https://crates.io/crates/cargo-godot-lib)
+[![.github/workflows/ci.yml](https://github.com/DragonAxe/cargo-godot-lib/actions/workflows/ci.yml/badge.svg)](https://github.com/DragonAxe/cargo-godot-lib/actions/workflows/ci.yml)
 
 A Rust library for launching Godot from a Cargo run script, specifically designed for GDExtension development.
 

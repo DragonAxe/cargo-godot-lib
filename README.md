@@ -38,13 +38,14 @@ See the following `project/rust/run_godot.rs` example:
 
 ```rust
 fn main() {
-    cargo_godot_lib::GodotRunner::create(
+    let result = cargo_godot_lib::GodotRunner::create(
         env!("CARGO_PKG_NAME"),
-        &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("godot"),
+        &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
     )
-    .expect("Failed to create Godot run configuration")
-    .execute()
-    .expect("Failed to execute Godot");
+    .and_then(|runner| runner.execute());
+    if let Err(error) = result {
+        eprintln!("{error}");
+    }
 }
 ```
 

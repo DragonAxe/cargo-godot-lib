@@ -17,13 +17,14 @@ pub struct GodotRunner {
 impl GodotRunner {
     /// Example usage:
     /// ```rust,ignore
-    /// cargo_godot_lib::GodotRunner::create(
+    /// let result = cargo_godot_lib::GodotRunner::create(
     ///     env!("CARGO_PKG_NAME"),
     ///     &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
     /// )
-    /// .expect("Failed to create Godot run configuration")
-    /// .execute()
-    /// .expect("Failed to execute Godot");
+    /// .and_then(|runner| runner.execute());
+    /// if let Err(e) = result {
+    ///     eprintln!("{e}");
+    /// }
     /// ```
     pub fn create(crate_name: &str, godot_project_path: &Path) -> Result<Self> {
         let manifest_path = Path::new("./Cargo.toml");
@@ -89,8 +90,8 @@ impl GodotRunner {
             .context("Failed to wait for Godot process")?;
 
         if !status.success() {
-            let code = status.code().context("Failed to get exit code")?;
-            Err(anyhow!("Godot process failed with exit code {}", code))
+            let code = status.code().context("Godot process exited")?;
+            Err(anyhow!("Godot process exited with exit code {}", code))
         } else {
             Ok(())
         }

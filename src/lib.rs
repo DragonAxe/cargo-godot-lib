@@ -8,8 +8,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub struct GodotRunner {
-    godot_project_path: Option<PathBuf>,
+    crate_name: String,
+    godot_project_path: PathBuf,
+    cargo_manifest_path: PathBuf,
     gdextension_config: Option<GdExtensionConfig>,
+    write_gdextension_config: bool,
     pre_import: bool,
     godot_cli_arguments: Vec<String>,
 }
@@ -17,65 +20,57 @@ pub struct GodotRunner {
 impl GodotRunner {
     /// Example usage:
     /// ```rust,ignore
-    /// let result = cargo_godot_lib::GodotRunner::create(
+    /// let runner = cargo_godot_lib::GodotRunner::create(
     ///     env!("CARGO_PKG_NAME"),
     ///     &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
-    /// )
-    /// .and_then(|runner| runner.execute());
-    /// if let Err(e) = result {
+    /// );
+    /// if let Err(e) = runner.execute() {
     ///     eprintln!("{e}");
     /// }
     /// ```
-    pub fn create(crate_name: &str, godot_project_path: &Path) -> Result<Self> {
-        let manifest_path = Path::new("./Cargo.toml");
-        Self::create_with_manifest(crate_name, godot_project_path, manifest_path)
-    }
-
-    /// Like `create`, but allows specifying a custom cargo manifest path (i.e., path to `Cargo.toml`).
-    pub fn create_with_manifest(
-        crate_name: &str,
-        godot_project_path: &Path,
-        cargo_manifest_path: &Path,
-    ) -> Result<Self> {
-        let metadata = cargo_metadata::MetadataCommand::new()
-            .manifest_path(cargo_manifest_path)
-            .exec()?;
-        Ok(Self {
-            godot_project_path: Some(godot_project_path.canonicalize().with_context(|| {
-                format!(
-                    "Failed to canonicalize godot project path: {:?}",
-                    godot_project_path
-                )
-            })?),
-            gdextension_config: Some(GdExtensionConfig::start(
-                crate_name,
-                godot_project_path,
-                metadata.target_directory.as_std_path(),
-            )),
+    pub fn create(crate_name: &str, godot_project_path: &Path) -> Self {
+        Self {
+            crate_name: crate_name.to_string(),
+            godot_project_path: godot_project_path.into(),
+            cargo_manifest_path: Path::new("./Cargo.toml").into(),
+            gdextension_config: None,
+            write_gdextension_config: true,
             pre_import: true,
-            godot_cli_arguments: vec!["--debug".to_string()], // Launch Godot with the local stdout debugger enabled
-        })
+            godot_cli_arguments: vec![],
+        }
     }
 
     /// Run Godot with the current configuration.
     pub fn execute(&self) -> Result<()> {
-        let godot_project_path = self
-            .godot_project_path
-            .as_ref()
-            .context("Godot project path not set.")?;
+        let godot_project_path = self.godot_project_path.canonicalize().with_context(|| {
+            format!(
+                "Failed to canonicalize godot project path: {:?}",
+                self.godot_project_path
+            )
+        })?;
+
         let godot_binary_path = godot_binary_path()?;
 
-        if let Some(gdextension_config) = &self.gdextension_config {
-            let valid_gdextension_config = gdextension_config
+        if self.write_gdextension_config {
+            let metadata = cargo_metadata::MetadataCommand::new()
+                .manifest_path(&self.cargo_manifest_path)
+                .exec()?;
+            let default_config = GdExtensionConfig::start(
+                &self.crate_name,
+                &self.godot_project_path,
+                metadata.target_directory.as_std_path(),
+            );
+            self.gdextension_config
+                .clone()
+                .unwrap_or(default_config)
                 .build()
-                .context("Failed to build .gdextension config")?;
-            valid_gdextension_config
+                .context("Failed to build .gdextension config")?
                 .write()
                 .context("Failed to write .gdextension file")?;
         }
 
         if self.pre_import {
-            run_godot_import_if_needed(godot_project_path)?;
+            run_godot_import_if_needed(&godot_project_path)?;
         }
 
         let status = Command::new(godot_binary_path)
@@ -97,11 +92,28 @@ impl GodotRunner {
         }
     }
 
-    /// Configure the `.gdextension` config file which is generated before launch by default.
-    /// If `None` is provided, a `.gdextension` file will not be generated before launch.
-    pub fn gdextension_config(self, config: Option<GdExtensionConfig>) -> Self {
+    /// Specify the path to the cargo manifest. Default: `./Cargo.toml`.
+    pub fn cargo_manifest_path(self, cargo_manifest_path: &Path) -> Self {
         Self {
-            gdextension_config: config,
+            cargo_manifest_path: cargo_manifest_path.to_path_buf(),
+            ..self
+        }
+    }
+
+    /// Write the `.gdextension` config file before launching Godot. Default: true.
+    /// See also: `gdextension_config`.
+    pub fn write_gdextension_config(self, write_gdextension_config: bool) -> Self {
+        Self {
+            write_gdextension_config,
+            ..self
+        }
+    }
+
+    /// Replace the default configuration for the `.gdextension` file which is generated before Godot launch.
+    /// See also: `write_gdextension_config`.
+    pub fn gdextension_config(self, config: GdExtensionConfig) -> Self {
+        Self {
+            gdextension_config: Some(config),
             ..self
         }
     }
@@ -112,13 +124,27 @@ impl GodotRunner {
         Self { pre_import, ..self }
     }
 
-    /// Set additional arguments to the Godot CLI. Default: `--debug` for local stdout debugging.
+    /// Set additional arguments to the Godot CLI.
     /// See https://docs.godotengine.org/en/stable/tutorials/editor/command_line_tutorial.html
-    /// for a list of available arguments
-    pub fn godot_cli_arguments(self, args: Vec<String>) -> Self {
+    /// for a list of available arguments.
+    pub fn godot_cli_arguments(self, args: Vec<impl Into<String>>) -> Self {
         Self {
-            godot_cli_arguments: args,
+            godot_cli_arguments: args.into_iter().map(Into::into).collect(),
             ..self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli_arguments() {
+        GodotRunner::create(
+            "crate_name",
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
+        )
+        .godot_cli_arguments(vec!["test"]);
     }
 }

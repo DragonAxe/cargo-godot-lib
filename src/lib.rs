@@ -26,6 +26,7 @@ impl GodotRunner {
     /// );
     /// if let Err(e) = runner.execute() {
     ///     eprintln!("{e}");
+    ///     std::process::exit(1);
     /// }
     /// ```
     pub fn create(crate_name: &str, godot_project_path: &Path) -> Self {

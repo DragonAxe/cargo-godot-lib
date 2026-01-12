@@ -139,13 +139,98 @@ impl GodotRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
-    fn test_cli_arguments() {
-        GodotRunner::create(
-            "crate_name",
-            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
-        )
-        .godot_cli_arguments(vec!["test"]);
+    fn test_create() {
+        let crate_name = "my_crate";
+        let godot_project_path = PathBuf::from("godot_project");
+        let runner = GodotRunner::create(crate_name, &godot_project_path);
+
+        assert_eq!(runner.crate_name, crate_name);
+        assert_eq!(runner.godot_project_path, godot_project_path);
+        assert_eq!(runner.cargo_manifest_path, PathBuf::from("./Cargo.toml"));
+        assert!(runner.gdextension_config.is_none());
+        assert!(runner.write_gdextension_config);
+        assert!(runner.pre_import);
+        assert!(runner.godot_cli_arguments.is_empty());
+    }
+
+    #[test]
+    fn test_builder_methods() {
+        let runner = GodotRunner::create("a", Path::new("b"))
+            .cargo_manifest_path(Path::new("custom/Cargo.toml"))
+            .write_gdextension_config(false)
+            .gdextension_config(GdExtensionConfig::default())
+            .pre_import(false)
+            .godot_cli_arguments(vec!["--hello", "world"]);
+
+        assert_eq!(
+            runner.cargo_manifest_path,
+            PathBuf::from("custom/Cargo.toml")
+        );
+        assert!(!runner.write_gdextension_config);
+        assert!(runner.gdextension_config.is_some());
+        assert!(!runner.pre_import);
+        assert_eq!(runner.godot_cli_arguments, vec!["--hello", "world"]);
+    }
+
+    #[test]
+    fn test_gdextension_config_builder() {
+        let dir = tempdir().unwrap();
+        let godot_project_path = dir.path().join("godot");
+        fs::create_dir(&godot_project_path).unwrap();
+
+        let config = GdExtensionConfig::start("my_crate", &godot_project_path, Path::new("target"));
+        let runner =
+            GodotRunner::create("my_crate", &godot_project_path).gdextension_config(config);
+
+        assert!(runner.gdextension_config.is_some());
+    }
+
+    #[test]
+    fn test_execute_failure_invalid_project_path() {
+        let runner = GodotRunner::create("my_crate", Path::new("non_existent_path"));
+        let result = runner.execute();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to canonicalize godot project path")
+        );
+    }
+
+    #[test]
+    fn test_execute() {
+        let dir = tempdir().unwrap();
+        let godot_project_path = dir.path().join("godot");
+        fs::create_dir(&godot_project_path).unwrap();
+        copy_dir_all("mock_godot_project", &godot_project_path).unwrap();
+
+        let runner = GodotRunner::create("my_crate", &godot_project_path)
+            .godot_cli_arguments(vec!["--quit-after", "1", "--headless"]);
+        runner.execute().unwrap();
+
+        assert!(
+            Path::new(&godot_project_path)
+                .join("rust.gdextension")
+                .exists()
+        );
+    }
+
+    fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+        fs::create_dir_all(&dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let ty = entry.file_type()?;
+            if ty.is_dir() {
+                copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            } else {
+                fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            }
+        }
+        Ok(())
     }
 }

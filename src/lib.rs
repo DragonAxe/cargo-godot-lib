@@ -211,6 +211,8 @@ mod tests {
 
         let runner = GodotRunner::create("my_crate", &godot_project_path)
             .godot_cli_arguments(vec!["--quit-after", "1", "--headless"]);
+
+        // Godot will fail to find the gdextension file which is expected for this test's mock crate.
         runner.execute().unwrap();
 
         assert!(

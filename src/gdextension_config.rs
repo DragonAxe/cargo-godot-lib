@@ -354,11 +354,15 @@ macos.debug.arm64 =      "res://../../.cache/cargo/target/debug/libtest_library.
             config.create(),
             r#"
 [configuration]
-entry_symbol = "gdext_rust_init"
+entry_symbol = "custom_entry_point"
 compatibility_minimum = 4.1
 reloadable = true
 
 [libraries]
+linux.release.x86_64 =   "res://../../.cache/cargo/target/release/libtest_library.so"
+windows.release.x86_64 = "res://../../.cache/cargo/target/release/test_library.dll"
+macos.release =          "res://../../.cache/cargo/target/release/libtest_library.dylib"
+macos.release.arm64 =    "res://../../.cache/cargo/target/release/libtest_library.dylib"
 linux.debug.x86_64 =     "res://../../.cache/cargo/target/debug/libtest_library.so"
 windows.debug.x86_64 =   "res://../../.cache/cargo/target/debug/test_library.dll"
 macos.debug =            "res://../../.cache/cargo/target/debug/libtest_library.dylib"

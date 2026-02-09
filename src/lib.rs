@@ -25,7 +25,7 @@ impl GodotRunner {
     ///     &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../godot"),
     /// );
     /// if let Err(e) = runner.execute() {
-    ///     eprintln!("{e}");
+    ///     eprintln!("{e:?}");
     ///     std::process::exit(1);
     /// }
     /// ```

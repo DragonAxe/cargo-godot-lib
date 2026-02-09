@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 pub struct ValidGdExtensionConfig {
     config_file_name: String,
     compatability_version: String,
+    entry_symbol: String,
     reloadable: bool,
     release_target: Option<String>,
     debug_target: Option<String>,
@@ -34,6 +35,7 @@ pub struct ValidGdExtensionConfig {
 pub struct GdExtensionConfig {
     config_file_name: String,
     compatability_version: String,
+    entry_symbol: String,
     reloadable: bool,
     release_target: Option<String>,
     debug_target: Option<String>,
@@ -47,6 +49,7 @@ impl Default for GdExtensionConfig {
         Self {
             config_file_name: "rust.gdextension".to_string(),
             compatability_version: "4.1".to_string(),
+            entry_symbol: "gdext_rust_init".to_string(),
             reloadable: true,
             release_target: Some("release".to_string()),
             debug_target: Some("debug".to_string()),
@@ -108,6 +111,7 @@ impl GdExtensionConfig {
             config_file_name: self.config_file_name.clone(),
             reloadable: self.reloadable,
             compatability_version: self.compatability_version.clone(),
+            entry_symbol: self.entry_symbol.clone(),
             release_target: self.release_target.clone(),
             debug_target: self.debug_target.clone(),
             godot_project_path,
@@ -139,6 +143,15 @@ impl GdExtensionConfig {
     pub fn compatability_version(self, version: &str) -> Self {
         Self {
             compatability_version: version.to_string(),
+            ..self
+        }
+    }
+
+    /// Configure the name of the entry symbol for the generated `.gdextension` file.
+    /// The default is `gdext_rust_init`.
+    pub fn entry_symbol(self, symbol: &str) -> Self {
+        Self {
+            entry_symbol: symbol.to_string(),
             ..self
         }
     }
@@ -201,12 +214,13 @@ macos.debug.arm64 =      "res://{target}/{debug_target}/lib{pkgname}.dylib"
         let preamble = format!(
             r#"
 [configuration]
-entry_symbol = "gdext_rust_init"
+entry_symbol = "{entry_symbol}"
 compatibility_minimum = {compatability_version}
 reloadable = {reloadable}
 
 [libraries]
 "#,
+            entry_symbol = self.entry_symbol,
             compatability_version = self.compatability_version,
             reloadable = if self.reloadable { "true" } else { "false" },
         )
@@ -325,6 +339,33 @@ macos.debug.arm64 =      "res://../../.cache/cargo/target/debug/libtest_library.
 "#
             .trim_start()
             .to_string()
+        );
+    }
+
+    #[test]
+    fn test_entry_symbol() {
+        let (_tempdir, godot_project_path, target_path) = create_test_directories();
+        let config = GdExtensionConfig::start("test_library", &godot_project_path, &target_path)
+            .entry_symbol("custom_entry_point")
+            .build()
+            .expect("Successful build");
+
+        assert_eq!(
+            config.create(),
+            r#"
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.1
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 =     "res://../../.cache/cargo/target/debug/libtest_library.so"
+windows.debug.x86_64 =   "res://../../.cache/cargo/target/debug/test_library.dll"
+macos.debug =            "res://../../.cache/cargo/target/debug/libtest_library.dylib"
+macos.debug.arm64 =      "res://../../.cache/cargo/target/debug/libtest_library.dylib"
+"#
+                .trim_start()
+                .to_string()
         );
     }
 }

@@ -3,17 +3,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use which::{which, which_in_global};
 
-pub fn run_godot_import_if_needed(godot_project_path: &Path) -> Result<()> {
+pub fn run_godot_import_if_needed(
+    godot_project_path: &Path,
+    godot_version: Option<&str>,
+) -> Result<()> {
     if !godot_project_path.join(".godot").exists() {
-        run_godot_import(godot_project_path)
+        run_godot_import(godot_project_path, godot_version)
     } else {
         Ok(())
     }
 }
 
-pub fn run_godot_import(godot_project_path: &Path) -> Result<()> {
-    let godot_binary_path = godot_binary_path()?;
-    let mut command = Command::new(godot_binary_path);
+pub fn run_godot_import(godot_project_path: &Path, godot_version: Option<&str>) -> Result<()> {
+    let mut command = godot_command(godot_version)?;
+
     command
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
@@ -43,12 +46,50 @@ pub fn run_godot_import(godot_project_path: &Path) -> Result<()> {
     }
 }
 
+pub fn run_godot(
+    godot_project_path: &Path,
+    godot_version: Option<&str>,
+    args: &[String],
+) -> Result<()> {
+    let mut command = godot_command(godot_version)?;
+
+    let status = command
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .current_dir(godot_project_path)
+        .args(args)
+        .spawn()
+        .context("Failed to spawn Godot process")?
+        .wait()
+        .context("Failed to wait for Godot process")?;
+
+    if !status.success() {
+        let code = status.code().context("Godot process exited")?;
+        Err(anyhow!("Godot process exited with exit code {}\nCommand: {:?}", code, command))
+    } else {
+        Ok(())
+    }
+}
+
+/// Returns a Command for running godot with the specified version (using `gdenv run <version>`),
+/// or the default godot binary if no version is provided.
+fn godot_command(godot_version: Option<&str>) -> Result<Command> {
+    Ok(if let Some(version) = godot_version {
+        let mut cmd = Command::new("gdenv");
+        cmd.arg("run").arg(version);
+        cmd
+    } else {
+        Command::new(godot_binary_path()?)
+    })
+}
+
 /// Looks for a godot executable in the following places:
 /// - `godot` environment variable.
 /// - `GODOT` environment variable.
 /// - `godot` executable in the PATH.
 /// - `godot` executable in the following common paths for linux and osx: `/usr/local/bin:/usr/bin:/bin:/Applications/Godot.app/Contents/MacOS`.
-pub fn godot_binary_path() -> Result<PathBuf> {
+fn godot_binary_path() -> Result<PathBuf> {
     if let Ok(godot_binary_path) = std::env::var("godot") {
         return Ok(PathBuf::from(godot_binary_path));
     }

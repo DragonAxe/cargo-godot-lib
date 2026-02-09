@@ -2,10 +2,9 @@ pub mod gdextension_config;
 pub mod godot_commands;
 
 use crate::gdextension_config::GdExtensionConfig;
-use crate::godot_commands::{godot_binary_path, run_godot_import_if_needed};
-use anyhow::{Context, Result, anyhow};
+use crate::godot_commands::{run_godot, run_godot_import_if_needed};
+use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 pub struct GodotRunner {
     crate_name: String,
@@ -15,6 +14,7 @@ pub struct GodotRunner {
     write_gdextension_config: bool,
     pre_import: bool,
     godot_cli_arguments: Vec<String>,
+    godot_version: Option<String>,
 }
 
 impl GodotRunner {
@@ -38,6 +38,7 @@ impl GodotRunner {
             write_gdextension_config: true,
             pre_import: true,
             godot_cli_arguments: vec![],
+            godot_version: None,
         }
     }
 
@@ -49,8 +50,6 @@ impl GodotRunner {
                 self.godot_project_path
             )
         })?;
-
-        let godot_binary_path = godot_binary_path()?;
 
         if self.write_gdextension_config {
             let metadata = cargo_metadata::MetadataCommand::new()
@@ -69,26 +68,14 @@ impl GodotRunner {
         }
 
         if self.pre_import {
-            run_godot_import_if_needed(&godot_project_path)?;
+            run_godot_import_if_needed(&godot_project_path, self.godot_version.as_deref())?;
         }
 
-        let status = Command::new(godot_binary_path)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .current_dir(godot_project_path)
-            .args(&self.godot_cli_arguments)
-            .spawn()
-            .context("Failed to spawn Godot process")?
-            .wait()
-            .context("Failed to wait for Godot process")?;
-
-        if !status.success() {
-            let code = status.code().context("Godot process exited")?;
-            Err(anyhow!("Godot process exited with exit code {}", code))
-        } else {
-            Ok(())
-        }
+        run_godot(
+            &godot_project_path,
+            self.godot_version.as_deref(),
+            &self.godot_cli_arguments,
+        )
     }
 
     /// Specify the path to the cargo manifest. Default: `./Cargo.toml`.
@@ -133,6 +120,15 @@ impl GodotRunner {
             ..self
         }
     }
+
+    /// Specify the Godot version to use via `gdenv` (https://github.com/bytemeadow/gdenv).
+    /// If specified, the runner will use `gdenv run <version>` to invoke Godot.
+    pub fn godot_version(self, version: impl Into<String>) -> Self {
+        Self {
+            godot_version: Some(version.into()),
+            ..self
+        }
+    }
 }
 
 #[cfg(test)]
@@ -153,6 +149,7 @@ mod tests {
         assert!(runner.write_gdextension_config);
         assert!(runner.pre_import);
         assert!(runner.godot_cli_arguments.is_empty());
+        assert!(runner.godot_version.is_none());
     }
 
     #[test]
@@ -162,7 +159,8 @@ mod tests {
             .write_gdextension_config(false)
             .gdextension_config(|config| config)
             .pre_import(false)
-            .godot_cli_arguments(vec!["--hello", "world"]);
+            .godot_cli_arguments(vec!["--hello", "world"])
+            .godot_version("4.6");
 
         assert_eq!(
             runner.cargo_manifest_path,
@@ -175,6 +173,7 @@ mod tests {
         );
         assert!(!runner.pre_import);
         assert_eq!(runner.godot_cli_arguments, vec!["--hello", "world"]);
+        assert_eq!(runner.godot_version, Some("4.6".to_string()));
     }
 
     #[test]
@@ -210,7 +209,9 @@ mod tests {
         let runner = GodotRunner::create("my_crate", &godot_project_path)
             .godot_cli_arguments(vec!["--quit-after", "1", "--headless"]);
 
-        // Godot will fail to find the gdextension file which is expected for this test's mock crate.
+        println!(
+            "Note: Godot will fail to find the gdextension file which is expected for this test's mock crate."
+        );
         runner.execute().unwrap();
 
         assert!(

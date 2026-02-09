@@ -11,7 +11,7 @@ pub struct GodotRunner {
     crate_name: String,
     godot_project_path: PathBuf,
     cargo_manifest_path: PathBuf,
-    gdextension_config: Option<GdExtensionConfig>,
+    gdextension_config: Box<dyn Fn(GdExtensionConfig) -> GdExtensionConfig + Send + Sync + 'static>,
     write_gdextension_config: bool,
     pre_import: bool,
     godot_cli_arguments: Vec<String>,
@@ -34,7 +34,7 @@ impl GodotRunner {
             crate_name: crate_name.to_string(),
             godot_project_path: godot_project_path.into(),
             cargo_manifest_path: Path::new("./Cargo.toml").into(),
-            gdextension_config: None,
+            gdextension_config: Box::new(|config| config),
             write_gdextension_config: true,
             pre_import: true,
             godot_cli_arguments: vec![],
@@ -61,9 +61,7 @@ impl GodotRunner {
                 &self.godot_project_path,
                 metadata.target_directory.as_std_path(),
             );
-            self.gdextension_config
-                .clone()
-                .unwrap_or(default_config)
+            (self.gdextension_config)(default_config)
                 .build()
                 .context("Failed to build .gdextension config")?
                 .write()
@@ -112,11 +110,12 @@ impl GodotRunner {
 
     /// Replace the default configuration for the `.gdextension` file which is generated before Godot launch.
     /// See also: `write_gdextension_config`.
-    pub fn gdextension_config(self, config: GdExtensionConfig) -> Self {
-        Self {
-            gdextension_config: Some(config),
-            ..self
-        }
+    pub fn gdextension_config(
+        mut self,
+        f: impl Fn(GdExtensionConfig) -> GdExtensionConfig + Send + Sync + 'static,
+    ) -> Self {
+        self.gdextension_config = Box::new(f);
+        self
     }
 
     /// Run `godot --import --headless` before launching Godot to create a `.godot` folder
@@ -151,7 +150,6 @@ mod tests {
         assert_eq!(runner.crate_name, crate_name);
         assert_eq!(runner.godot_project_path, godot_project_path);
         assert_eq!(runner.cargo_manifest_path, PathBuf::from("./Cargo.toml"));
-        assert!(runner.gdextension_config.is_none());
         assert!(runner.write_gdextension_config);
         assert!(runner.pre_import);
         assert!(runner.godot_cli_arguments.is_empty());
@@ -162,7 +160,7 @@ mod tests {
         let runner = GodotRunner::create("a", Path::new("b"))
             .cargo_manifest_path(Path::new("custom/Cargo.toml"))
             .write_gdextension_config(false)
-            .gdextension_config(GdExtensionConfig::default())
+            .gdextension_config(|config| config)
             .pre_import(false)
             .godot_cli_arguments(vec!["--hello", "world"]);
 
@@ -171,7 +169,10 @@ mod tests {
             PathBuf::from("custom/Cargo.toml")
         );
         assert!(!runner.write_gdextension_config);
-        assert!(runner.gdextension_config.is_some());
+        assert_eq!(
+            (runner.gdextension_config)(GdExtensionConfig::default()),
+            GdExtensionConfig::default()
+        );
         assert!(!runner.pre_import);
         assert_eq!(runner.godot_cli_arguments, vec!["--hello", "world"]);
     }
@@ -182,11 +183,8 @@ mod tests {
         let godot_project_path = dir.path().join("godot");
         fs::create_dir(&godot_project_path).unwrap();
 
-        let config = GdExtensionConfig::start("my_crate", &godot_project_path, Path::new("target"));
-        let runner =
-            GodotRunner::create("my_crate", &godot_project_path).gdextension_config(config);
-
-        assert!(runner.gdextension_config.is_some());
+        let _runner = GodotRunner::create("my_crate", &godot_project_path)
+            .gdextension_config(|config| config.reloadable(false));
     }
 
     #[test]

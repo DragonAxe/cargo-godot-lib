@@ -364,8 +364,8 @@ windows.debug.x86_64 =   "res://../../.cache/cargo/target/debug/test_library.dll
 macos.debug =            "res://../../.cache/cargo/target/debug/libtest_library.dylib"
 macos.debug.arm64 =      "res://../../.cache/cargo/target/debug/libtest_library.dylib"
 "#
-                .trim_start()
-                .to_string()
+            .trim_start()
+            .to_string()
         );
     }
 }

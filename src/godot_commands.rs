@@ -66,7 +66,11 @@ pub fn run_godot(
 
     if !status.success() {
         let code = status.code().context("Godot process exited")?;
-        Err(anyhow!("Godot process exited with exit code {}\nCommand: {:?}", code, command))
+        Err(anyhow!(
+            "Godot process exited with exit code {}\nCommand: {:?}",
+            code,
+            command
+        ))
     } else {
         Ok(())
     }

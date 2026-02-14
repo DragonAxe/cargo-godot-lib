@@ -32,6 +32,7 @@ jobs:
     name: Tests
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         mode: ["debug", "release"]
     runs-on: ubuntu-latest
     steps:

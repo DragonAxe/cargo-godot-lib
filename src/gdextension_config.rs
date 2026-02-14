@@ -105,7 +105,8 @@ impl GdExtensionConfig {
             })?
             .to_str()
             .context("Failed to convert relative target path to string")?
-            .to_string();
+            .to_string()
+            .replace('\\', "/"); // Godot res:// paths are always forward slashes.
 
         Ok(ValidGdExtensionConfig {
             config_file_name: self.config_file_name.clone(),
@@ -262,9 +263,11 @@ mod tests {
         let config = GdExtensionConfig::start("test_library", &godot_project_path, &target_path)
             .build()
             .expect("Successful build");
+        let file_string = config.create();
 
+        assert!(!file_string.contains('\\'));
         assert_eq!(
-            config.create(),
+            file_string,
             r#"
 [configuration]
 entry_symbol = "gdext_rust_init"
@@ -294,9 +297,11 @@ macos.debug.arm64 =      "res://../../.cache/cargo/target/debug/libtest_library.
             .debug_target(None)
             .build()
             .expect("Successful build");
+        let file_string = config.create();
 
+        assert!(!file_string.contains('\\'));
         assert_eq!(
-            config.create(),
+            file_string,
             r#"
 [configuration]
 entry_symbol = "gdext_rust_init"
@@ -322,9 +327,11 @@ macos.release.arm64 =    "res://../../.cache/cargo/target/release/libtest_librar
             .debug_target(Some("debug".to_string()))
             .build()
             .expect("Successful build");
+        let file_string = config.create();
 
+        assert!(!file_string.contains('\\'));
         assert_eq!(
-            config.create(),
+            file_string,
             r#"
 [configuration]
 entry_symbol = "gdext_rust_init"
@@ -349,9 +356,11 @@ macos.debug.arm64 =      "res://../../.cache/cargo/target/debug/libtest_library.
             .entry_symbol("custom_entry_point")
             .build()
             .expect("Successful build");
+        let file_string = config.create();
 
+        assert!(!file_string.contains('\\'));
         assert_eq!(
-            config.create(),
+            file_string,
             r#"
 [configuration]
 entry_symbol = "custom_entry_point"
